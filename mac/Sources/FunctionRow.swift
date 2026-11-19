@@ -6,9 +6,9 @@ enum FunctionRowMode: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .system: return "Mac 시스템 설정 따르기"
-        case .macBook: return "MacBook 상단 기능"
-        case .standard: return "표준 F1–F12"
+        case .system: return L10n.text("Follow Mac settings")
+        case .macBook: return L10n.text("MacBook top-row controls")
+        case .standard: return L10n.text("Standard F1–F12")
         }
     }
 }
@@ -110,7 +110,7 @@ struct FunctionRow {
         case 0x000c00e2: return .auxiliary(NX_KEYTYPE_MUTE)
         case 0x000c00ea: return .auxiliary(NX_KEYTYPE_SOUND_DOWN)
         case 0x000c00e9: return .auxiliary(NX_KEYTYPE_SOUND_UP)
-        default: return .desktop(.unavailable("F\(index + 1) 상단 기능"))
+        default: return .desktop(.unavailable(L10n.format("F%@ top-row action", String(index + 1))))
         }
     }
 }

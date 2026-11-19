@@ -62,7 +62,7 @@ final class KeyboardSources {
 
     // nil means the system accepted the switch. Never enable an unconfigured source.
     func select(_ intent: SourceSwitch) -> String? {
-        guard let current = Self.current() else { return "현재 macOS 입력 소스를 확인할 수 없습니다." }
+        guard let current = Self.current() else { return L10n.text("Could not identify the current macOS input source.") }
         let sources = Self.enabled()
         if current.ascii { lastLatin = current.id }
         else { lastNonLatin = current.id }
@@ -81,8 +81,8 @@ final class KeyboardSources {
             target = latin.first { $0.id == lastLatin } ?? latin.first { $0.id == recent }
                 ?? latin.first { $0.id == "com.apple.keylayout.ABC" } ?? latin.first
         }
-        guard let target else { return "시스템 설정 → 키보드 → 입력 소스에서 사용할 입력 소스를 추가하세요." }
+        guard let target else { return L10n.text("Add an input source in System Settings → Keyboard → Input Sources.") }
         let status = TISSelectInputSource(target.ref)
-        return status == noErr ? nil : "macOS 입력 소스 전환 실패 (\(status))"
+        return status == noErr ? nil : L10n.format("Could not switch the macOS input source (%@).", String(status))
     }
 }

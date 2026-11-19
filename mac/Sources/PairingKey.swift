@@ -37,7 +37,7 @@ struct PairingKey {
         if let stored = try read() { return stored }
         let key = try Self.generate()
         var item = query
-        item[kSecAttrLabel as String] = "AirPlay Input 페어링 키"
+        item[kSecAttrLabel as String] = L10n.text("AirPlay Input pairing key")
         item[kSecValueData as String] = key
         let status = SecItemAdd(item as CFDictionary, nil)
         if status == errSecDuplicateItem, let stored = try read() { return stored }

@@ -78,11 +78,11 @@ final class QuartzOutput {
     func post(_ input: MacEvent, flags: InputFlags) {
         if case .desktop(let action) = input {
             if case .unavailable(let name) = action {
-                notice("\(name) 전용 키는 이 앱에서 지원하지 않습니다.")
+                notice(L10n.format("The %@ key is not supported in this app.", name))
             } else if let url = action.applicationURL {
                 // Launch Services addresses the built-in system app even if its shortcut was reassigned.
                 NSWorkspace.shared.openApplication(at: url, configuration: .init()) { [notice] _, error in
-                    if error != nil { DispatchQueue.main.async { notice("\(url.deletingPathExtension().lastPathComponent)을 열 수 없습니다.") } }
+                    if error != nil { DispatchQueue.main.async { notice(L10n.format("Could not open %@.", url.deletingPathExtension().lastPathComponent)) } }
                 }
             }
             return

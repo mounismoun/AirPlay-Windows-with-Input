@@ -6,8 +6,9 @@ mkdir -p .build "$output_directory"
 stage=$(mktemp -d "$PWD/.build/package.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
 bundle="$stage/AirPlay Input.app"
-mkdir -p "$bundle/Contents/MacOS"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
+cp -R Resources/*.lproj "$bundle/Contents/Resources/"
 for arch in arm64 x86_64; do
     xcrun swiftc -O -swift-version 5 -target "${arch}-apple-macos13.0" \
         -module-cache-path "$PWD/.build/ModuleCache" Sources/*.swift -o "$stage/$arch"

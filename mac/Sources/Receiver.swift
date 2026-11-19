@@ -18,7 +18,7 @@ final class Receiver: ObservableObject {
     @Published private(set) var paused = false
     var display: CGDirectDisplayID? {
         didSet {
-            if display != oldValue { session?.stop("디스플레이가 변경되었습니다") }
+            if display != oldValue { session?.stop(L10n.text("Display changed")) }
         }
     }
 
@@ -67,14 +67,14 @@ final class Receiver: ObservableObject {
     }
 
     private func reset() {
-        session?.stop("수신이 중단되었습니다")
+        session?.stop(L10n.text("Receiver stopped"))
         for address in Array(listeners.keys) { remove(address) }
         failures.removeAll()
         publish()
     }
 
     private func remove(_ address: LANAddress) {
-        if sessionAddress == address { session?.stop("네트워크가 변경되었습니다") }
+        if sessionAddress == address { session?.stop(L10n.text("Network changed")) }
         listeners.removeValue(forKey: address)?.cancel()
         ready.remove(address)
     }
@@ -134,10 +134,10 @@ final class Receiver: ObservableObject {
         let message: String
         switch error as? NWError {
         case .posix(.EADDRINUSE):
-            message = "포트 49721 사용 중 · 기존 수신기 종료 후 자동으로 다시 시도합니다."
+            message = L10n.text("Port 49721 is in use. Close the other receiver. AirPlay Input will retry automatically.")
         case .posix(.EPERM), .posix(.EACCES):
-            message = "시스템 설정에서 AirPlay Input의 로컬 네트워크 접근을 허용하세요."
-        default: message = "네트워크 수신 대기 실패 (\(error.localizedDescription)) · 다시 시도 중"
+            message = L10n.text("Allow local network access for AirPlay Input in System Settings.")
+        default: message = L10n.format("Unable to listen for connections (%@). Retrying…", L10n.errorCode(error))
         }
         failures[address] = (Date().addingTimeInterval(8), message)
     }

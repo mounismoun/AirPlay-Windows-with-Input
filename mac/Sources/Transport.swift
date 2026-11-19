@@ -62,7 +62,7 @@ final class InputSession {
     func start() {
         let watchdog = DispatchSource.makeTimerSource(queue: .main)
         timer = watchdog
-        watchdog.setEventHandler { [weak self] in self?.stop("연결 시간 초과") }
+        watchdog.setEventHandler { [weak self] in self?.stop(L10n.text("Connection timed out")) }
         watchdog.schedule(deadline: .now() + 6)
         watchdog.resume()
         connection.stateUpdateHandler = { [weak self] state in
@@ -70,18 +70,18 @@ final class InputSession {
             switch state {
             case .ready:
                 guard Transport.paired(self.connection), self.permitted() else {
-                    self.stop("연결 권한을 확인하세요")
+                    self.stop(L10n.text("Check the connection permissions"))
                     return
                 }
                 self.connection.send(content: Data([1]), completion: .contentProcessed { [weak self] error in
                     guard let self, !self.ended else { return }
-                    guard error == nil else { self.stop("응답 전송 실패"); return }
+                    guard error == nil else { self.stop(L10n.text("Could not send the reply")); return }
                     self.onReady()
                     self.timer?.schedule(deadline: .now() + 3)
                     self.receive()
                 })
-            case .failed: self.stop("연결 실패 · 페어링 키와 네트워크를 확인하세요")
-            case .cancelled: self.stop("연결 종료")
+            case .failed: self.stop(L10n.text("Connection failed. Check the pairing key and network."))
+            case .cancelled: self.stop(L10n.text("Connection closed"))
             default: break
             }
         }
@@ -91,15 +91,15 @@ final class InputSession {
     private func receive() {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { [weak self] data, _, eof, error in
             guard let self, !self.ended else { return }
-            guard self.permitted() else { self.stop("입력 권한이 변경되었습니다"); return }
+            guard self.permitted() else { self.stop(L10n.text("Input permissions changed")); return }
             if let data, !data.isEmpty {
                 guard let count = self.frames.receive(data, apply: self.sink.apply) else {
-                    self.stop("디스플레이 또는 입력 프레임을 확인하세요")
+                    self.stop(L10n.text("Check the display or input frame"))
                     return
                 }
                 if count > 0 { self.timer?.schedule(deadline: .now() + 3) }
             }
-            if eof || error != nil { self.stop("연결 종료") }
+            if eof || error != nil { self.stop(L10n.text("Connection closed")) }
             else { self.receive() }
         }
     }

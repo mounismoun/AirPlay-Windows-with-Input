@@ -99,6 +99,10 @@ import Security
             precondition(Data(SHA256.hash(data: installed)) == FileHandle.standardInput.readDataToEndOfFile())
             return
         }
+        precondition(L10n.language(for: ["ko-KR", "en-US"]) == "ko")
+        precondition(L10n.language(for: ["en-KR", "ko"]) == "en")
+        precondition(L10n.language(for: ["ja-JP", "ko", "en"]) == "en")
+        precondition(L10n.language(for: []) == "en")
         policy()
         inputs()
         try storage()

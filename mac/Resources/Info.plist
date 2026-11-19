@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key><string>ko</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleDisplayName</key><string>AirPlay Input</string>
     <key>CFBundleExecutable</key><string>AirPlayInput</string>
     <key>CFBundleIdentifier</key><string>local.airplay-input.receiver</string>
@@ -15,8 +15,8 @@
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>같은 Wi-Fi 또는 이더넷에서 페어링한 Windows 기기의 입력을 수신합니다.</string>
+    <string>Receive input from your paired Windows PC over local Wi-Fi or Ethernet.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>페어링한 Windows 기기의 키보드와 마우스 입력을 선택한 Mac 디스플레이에 전달합니다.</string>
+    <string>Send keyboard and mouse input from your paired Windows PC to the selected Mac display.</string>
 </dict>
 </plist>

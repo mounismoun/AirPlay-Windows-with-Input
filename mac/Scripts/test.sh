@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .build
-compile=(xcrun swiftc -swift-version 5 -module-cache-path "$PWD/.build/ModuleCache")
+compile=(xcrun swiftc -swift-version 5 -module-cache-path "$PWD/.build/ModuleCache" Sources/L10n.swift)
 inputs=(Sources/InputFrames.swift Sources/InputSink.swift Sources/FunctionRow.swift)
 "${compile[@]}" Sources/{FunctionRow,InputSink,QuartzOutput,KeyboardSources,TopRowCommands}.swift Tests/KeyboardTests.swift -o .build/KeyboardTests
 .build/KeyboardTests

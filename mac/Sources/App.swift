@@ -66,7 +66,7 @@ final class SettingsModel: ObservableObject {
 
     private func keyMessage(_ error: Error) -> String {
         let status = (error as? KeychainError)?.status ?? errSecInternalError
-        return "키체인 접근 실패 (\(status)). 로그인 키체인을 잠금 해제하고 다시 시도하세요."
+        return L10n.format("Keychain access failed (%@). Unlock your login keychain and try again.", String(status))
     }
 
     private func setKey(_ newKey: Data) {
@@ -134,7 +134,7 @@ final class SettingsModel: ObservableObject {
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }
             loginError = ""
-        } catch { loginError = "로그인 항목 변경 실패 · " + error.localizedDescription }
+        } catch { loginError = L10n.format("Could not change the login item (%@).", L10n.errorCode(error)) }
         refreshSettings()
     }
 }
@@ -145,38 +145,38 @@ struct SettingsView: View {
     @State private var confirmRotate = false
 
     private var status: String {
-        if receiver.paused { return "수신 일시 정지" }
-        if !receiver.trusted { return "손쉬운 사용 권한 필요" }
-        if !model.hasKey { return "페어링 키 필요" }
-        if !receiver.peer.isEmpty { return "Windows 연결됨" }
-        if !receiver.listening.isEmpty { return "Windows 연결 대기 중" }
-        return receiver.issue.isEmpty ? "로컬 Wi-Fi 또는 이더넷 연결 대기 중" : "수신 대기 실패"
+        if receiver.paused { return L10n.text("Receiver paused") }
+        if !receiver.trusted { return L10n.text("Accessibility permission required") }
+        if !model.hasKey { return L10n.text("Pairing key required") }
+        if !receiver.peer.isEmpty { return L10n.text("Connected to Windows") }
+        if !receiver.listening.isEmpty { return L10n.text("Waiting for Windows") }
+        return receiver.issue.isEmpty ? L10n.text("Waiting for a local Wi-Fi or Ethernet connection") : L10n.text("Unable to listen for connections")
     }
 
     var body: some View {
         Form {
             Section {
-                LabeledContent("수신 상태") {
+                LabeledContent(L10n.text("Receiver status")) {
                     Text(status)
-                    Button(receiver.paused ? "재개" : "일시 정지") { receiver.togglePause() }
+                    Button(receiver.paused ? L10n.text("Resume") : L10n.text("Pause")) { receiver.togglePause() }
                 }
-                if !receiver.peer.isEmpty { LabeledContent("연결된 기기", value: receiver.peer) }
+                if !receiver.peer.isEmpty { LabeledContent(L10n.text("Connected device"), value: receiver.peer) }
                 if !receiver.listening.isEmpty {
-                    LabeledContent("LAN 주소 · TCP 49721", value: receiver.listening.joined(separator: "\n"))
+                    LabeledContent(L10n.text("LAN address · TCP 49721"), value: receiver.listening.joined(separator: "\n"))
                         .font(.callout.monospacedDigit())
                 }
                 if !receiver.lastSession.isEmpty { Text(receiver.lastSession).foregroundStyle(.secondary) }
                 if !receiver.issue.isEmpty { Text(receiver.issue).foregroundStyle(.orange) }
                 if !receiver.keyboardIssue.isEmpty { Text(receiver.keyboardIssue).foregroundStyle(.orange) }
-                LabeledContent("손쉬운 사용") {
-                    Text(receiver.trusted ? "허용됨" : "키보드와 마우스 입력에 필요")
-                    Button("권한 설정 열기") { model.permissionSettings() }
+                LabeledContent(L10n.text("Accessibility")) {
+                    Text(receiver.trusted ? L10n.text("Allowed") : L10n.text("Required for keyboard and mouse input"))
+                    Button(L10n.text("Open Permission Settings")) { model.permissionSettings() }
                 }
-                Picker("F1–F12 동작", selection: $receiver.functionRowMode) {
+                Picker(L10n.text("F1–F12 behavior"), selection: $receiver.functionRowMode) {
                     ForEach(FunctionRowMode.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                Picker("입력할 디스플레이", selection: $model.display) {
-                    Text("주 디스플레이 (자동)").tag(0)
+                Picker(L10n.text("Display to control"), selection: $model.display) {
+                    Text(L10n.text("Main display (automatic)")).tag(0)
                     ForEach(model.screens, id: \.self) { screen in
                         if let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
                             Text(screen.localizedName + " · " + id.stringValue).tag(id.intValue)
@@ -184,43 +184,43 @@ struct SettingsView: View {
                     }
                     if model.display != 0 && !model.screens.contains(where: {
                         ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue == model.display
-                    }) { Text("연결 해제된 디스플레이 · \(model.display)").tag(model.display) }
+                    }) { Text(L10n.format("Disconnected display · %@", String(model.display))).tag(model.display) }
                 }
             }
             Section {
-                LabeledContent("페어링 키") {
-                    Button(model.visibleKey == nil ? "키 표시" : "가리기") { model.reveal() }
-                    Button(model.copied ? "복사됨" : "복사") { model.copyKey() }
-                    Button("재발급…") { confirmRotate = true }
+                LabeledContent(L10n.text("Pairing key")) {
+                    Button(model.visibleKey == nil ? L10n.text("Show key") : L10n.text("Hide")) { model.reveal() }
+                    Button(model.copied ? L10n.text("Copied") : L10n.text("Copy")) { model.copyKey() }
+                    Button(L10n.text("Replace key…")) { confirmRotate = true }
                 }.disabled(!model.hasKey || model.readingKey)
                 if model.readingKey {
-                    Text("키체인 확인 중 · macOS에서 접근 요청을 표시하면 확인하세요.")
+                    Text(L10n.text("Checking the keychain. Allow access if macOS asks."))
                 }
                 if let key = model.visibleKey {
                     Text(verbatim: key).font(.system(.body, design: .monospaced))
                 }
                 if !model.keyError.isEmpty {
                     Text(model.keyError)
-                    Button("키체인 다시 열기") { model.load() }
+                    Button(L10n.text("Retry keychain access")) { model.load() }
                 }
             } footer: {
-                Text("Windows 미러링 창에서 F8을 누르고 처음 한 번만 키를 입력하세요. 다음 연결부터 저장된 키를 사용합니다.")
+                Text(L10n.text("Press F8 in the Windows mirroring window and enter the key once. Windows remembers it for future connections."))
             }
             Section {
-                Toggle("로그인 시 AirPlay Input 시작", isOn: Binding(
+                Toggle(L10n.text("Start AirPlay Input at login"), isOn: Binding(
                     get: { model.login == .enabled || model.login == .requiresApproval },
                     set: model.setLogin))
                 if model.login == .requiresApproval {
-                    Button("시스템 설정에서 로그인 항목 허용") { SMAppService.openSystemSettingsLoginItems() }
+                    Button(L10n.text("Allow the login item in System Settings")) { SMAppService.openSystemSettingsLoginItems() }
                 }
                 if !model.loginError.isEmpty { Text(model.loginError) }
             }
         }
         .formStyle(.grouped)
-        .alert("페어링 키를 재발급할까요?", isPresented: $confirmRotate) {
-            Button("취소", role: .cancel) {}
-            Button("재발급", role: .destructive) { model.rotate() }
-        } message: { Text("현재 연결을 종료합니다. Windows에서 F8을 눌러 새 키를 입력하세요.") }
+        .alert(L10n.text("Replace the pairing key?"), isPresented: $confirmRotate) {
+            Button(L10n.text("Cancel"), role: .cancel) {}
+            Button(L10n.text("Replace key"), role: .destructive) { model.rotate() }
+        } message: { Text(L10n.text("This will end the current connection. Press F8 on Windows and enter the new key.")) }
     }
 }
 
@@ -250,9 +250,9 @@ struct SettingsView: View {
         window.delegate = self
         window.center()
         let menu = NSMenu()
-        menu.addItem(withTitle: "AirPlay Input 열기", action: #selector(showWindow), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: L10n.text("Open AirPlay Input"), action: #selector(showWindow), keyEquivalent: ",").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "AirPlay Input 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: L10n.text("Quit AirPlay Input"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let main = NSMenu()
         let appMenu = NSMenuItem()
         appMenu.submenu = menu

@@ -1,0 +1,2 @@
+"NSLocalNetworkUsageDescription" = "같은 Wi-Fi 또는 이더넷에서 페어링한 Windows 기기의 입력을 수신합니다.";
+"NSAccessibilityUsageDescription" = "페어링한 Windows 기기의 키보드와 마우스 입력을 선택한 Mac 디스플레이에 전달합니다.";
