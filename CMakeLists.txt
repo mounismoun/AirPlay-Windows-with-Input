@@ -56,7 +56,7 @@ endif()
 # ---- OpenSSL (required) -------------------------------------------------------
 # Used for Ed25519 identity keys, X25519 ECDH, AES-CTR and SHA-512 during the
 # AirPlay pair-setup / pair-verify handshake.
-find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL)
 
 # ---- FFmpeg (required for H.264 decoding) -------------------------------------
 # Uses libavcodec to decode the clear H.264 NAL units the mirror stream
@@ -299,6 +299,8 @@ endif()
 # ---- Sources ------------------------------------------------------------------
 add_executable(airplay-windows
     src/main.cpp
+    src/input/channel.cpp
+    src/input/video_input.cpp
     src/log.cpp
     src/settings.cpp
     src/platform/desktop_controls.cpp
@@ -345,7 +347,7 @@ add_executable(airplay-windows
 )
 
 target_include_directories(airplay-windows PRIVATE src)
-target_link_libraries(airplay-windows PRIVATE OpenSSL::Crypto ${FFMPEG_TARGETS} ${SDL2_TARGET} ${SDL2_TTF_TARGET} imgui)
+target_link_libraries(airplay-windows PRIVATE OpenSSL::SSL OpenSSL::Crypto ${FFMPEG_TARGETS} ${SDL2_TARGET} ${SDL2_TTF_TARGET} imgui)
 if(_use_gst AND GSTREAMER_FOUND)
     target_link_libraries(airplay-windows PRIVATE PkgConfig::GSTREAMER)
     target_compile_definitions(airplay-windows PRIVATE HAVE_GSTREAMER_HLS=1)
@@ -554,6 +556,13 @@ endif()
 # Focused regression tests for receiver disconnect and shutdown.
 option(BUILD_NETWORK_TESTS "Build socket shutdown regression tests" OFF)
 if(BUILD_NETWORK_TESTS)
+    add_executable(test-mac-input tools/test_mac_input.cpp src/input/channel.cpp
+        src/input/video_input.cpp src/net/socket.cpp src/log.cpp)
+    target_include_directories(test-mac-input PRIVATE src)
+    target_link_libraries(test-mac-input PRIVATE OpenSSL::SSL OpenSSL::Crypto ${SDL2_TARGET} imgui)
+    if(WIN32)
+        target_link_libraries(test-mac-input PRIVATE ws2_32 iphlpapi)
+    endif()
     add_executable(test-hls tools/test_hls.cpp src/video/hls_player.cpp src/audio/audio_output.cpp
         src/airplay/hls_local_server.cpp src/airplay/hls_session.cpp src/airplay/fcup.cpp
         src/airplay/reverse_channel.cpp src/net/tcp_server.cpp src/net/socket.cpp src/log.cpp)
@@ -595,6 +604,8 @@ if(BUILD_NETWORK_TESTS)
         target_link_libraries(test-shutdown PRIVATE Threads::Threads)
     endif()
     enable_testing()
+    add_test(NAME mac-input COMMAND test-mac-input)
+    set_tests_properties(mac-input PROPERTIES TIMEOUT 20)
     add_test(NAME hls COMMAND test-hls)
     set_tests_properties(hls PROPERTIES TIMEOUT 20)
     add_test(NAME firewall COMMAND test-firewall)

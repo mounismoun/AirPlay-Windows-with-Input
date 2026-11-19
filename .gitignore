@@ -12,6 +12,7 @@ vcpkg_installed/
 *.suo
 *.obj
 *.exe
+/mac/mac-input
 *.pdb
 *.ilk
 

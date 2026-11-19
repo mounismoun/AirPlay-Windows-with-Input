@@ -1,4 +1,5 @@
 #include "video/video_renderer.h"
+#include "input/video_input.h"
 #include "platform/desktop_controls.h"
 #include "video/video_recorder.h"
 #include "video/gpu_video.h"
@@ -177,6 +178,7 @@ namespace {
 // owns SDL events.
 struct UiState {
     bool chromeless = false;
+    bool mac_input_owns_stage = false;
     bool diagnostics = false;
     int page = 0;
     bool was_connected = false;
@@ -207,7 +209,8 @@ SDL_HitTestResult SDLCALL hit_test_cb(SDL_Window* w,
     if (bottom)          return SDL_HITTEST_RESIZE_BOTTOM;
     if (left)            return SDL_HITTEST_RESIZE_LEFT;
     if (right)           return SDL_HITTEST_RESIZE_RIGHT;
-    if (ui && (ui->chromeless || (p->y < kToolbarHeight && p->x < win_w - 194)))
+    if (ui && !ui->mac_input_owns_stage &&
+        (ui->chromeless || (p->y < kToolbarHeight && p->x < win_w - 194)))
         return SDL_HITTEST_DRAGGABLE;
     return SDL_HITTEST_NORMAL;
 }
@@ -1266,6 +1269,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         else reveal_window();
     }
     ap::platform::FirewallMonitor firewall_monitor;
+    ap::input::VideoInput mac_input;
     while (running_.load()) {
         const auto python_preparation=python_setup.status();
         if(python_setup_pending && !python_preparation.active) {
@@ -1340,11 +1344,18 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
             }
         }
 
+        DeviceInfo input_peer;
+        const bool mirror_input = active_device_snapshot(input_peer) && input_peer.kind == "Mirror";
+        mac_input.update(window, mirror_input ? input_peer.peer_ip : "",
+                         mirror_input ? input_peer.session_id : "");
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
+            if (mac_input.event(e)) continue;
             if (live_preview.handle_event(e)) continue;
             // Always feed ImGui first so focus / hover / capture work.
             ImGui_ImplSDL2_ProcessEvent(&e);
+            if (mac_input.pairing() && (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP ||
+                                        e.type == SDL_MOUSEBUTTONDOWN)) continue;
             if (e.type == SDL_QUIT) {
                 if (tray_available) { SDL_HideWindow(window); continue; }
                 LOG_INFO << "VideoRenderer received SDL_QUIT";
@@ -1690,7 +1701,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         //   - chromeless: regular resizable window, no chrome
         // Both collapse all insets to 0 so the video stage covers the
         // whole window, and both skip the ImGui panel block below.
-        const bool no_chrome = fullscreen || ui.chromeless;
+        const bool no_chrome = fullscreen || ui.chromeless || mac_input.capturing();
         const auto firewall=firewall_monitor.status();
         const bool firewall_notice=firewall.state!=ap::platform::FirewallState::Checking &&
             firewall.state!=ap::platform::FirewallState::Allowed;
@@ -1759,11 +1770,15 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
             !playing_now &&
             (!has_active_dev || active_dev.kind != "Mirror");
 
+        mac_input.presented({}, 0, full_w, full_h);
         if (show_video) {
             SDL_SetRenderDrawColor(renderer, 23, 30, 34, 255);
             SDL_RenderFillRect(renderer, nullptr);
             const int angle = rotation_degrees();
             SDL_Rect dst = fit_inside(display_width(), display_height(), win_w, win_h);
+            if (has_active_dev && active_dev.kind == "Mirror" && (no_chrome || ui.page == 2))
+                mac_input.presented({stage_rect.x+dst.x, stage_rect.y+dst.y, dst.w, dst.h},
+                                    angle, full_w, full_h);
             // SDL rotates the destination rectangle around its centre. Swap
             // its unrotated extents so the final bounds fit the stage exactly.
             SDL_Rect copy_dst = dst;
@@ -2215,6 +2230,10 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
             if (ui_draw::text_button(recording ? tr("Stop recording") : tr("Record"),ImVec2(125,34))) toggle_recording();
             ImGui::SameLine(); if (ui_draw::text_button(tr("Fullscreen"),ImVec2(110,34))) toggle_fullscreen();
             ImGui::SameLine(); if (ui_draw::text_button(tr("Hide interface"),ImVec2(120,34))) ui.chromeless=true;
+            if (active_dev.kind == "Mirror") {
+                ImGui::SameLine();
+                if (ui_draw::text_button("Mac input (F8)", ImVec2(125,34))) mac_input.request_pair();
+            }
             ImGui::SameLine();
             ImGui::BeginDisabled(!live_settings_);
             if (ui_draw::text_button(tr("Rotation"),ImVec2(98,34))) ImGui::OpenPopup("##quick_rotation");
@@ -2463,6 +2482,8 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
             }
         }
 
+        mac_input.draw();
+        ui.mac_input_owns_stage = mac_input.capturing() || mac_input.pairing();
         publish_preferences();
         ImGui::Render();
         ImGui_ImplSDLRenderer2_RenderDrawData(
@@ -2504,6 +2525,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         }
     }
 
+    mac_input.update(window, "", "");
     face_swap.stop();
     if (recorder_) recorder_->stop();
     publish_preferences();
