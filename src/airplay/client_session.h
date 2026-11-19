@@ -34,6 +34,7 @@ struct ClientSession {
     // iOS IP only (no port). Used as destination for the NTP client probes
     // we send once SETUP is done.
     std::string remote_ip;
+    uint32_t remote_scope = 0;
 
     // TCP socket fd of the underlying control connection. Used by
     // handle_reverse to register itself in ReverseChannelRegistry so

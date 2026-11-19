@@ -18,6 +18,7 @@ struct ClientSocket {
     socket_t fd = INVALID_SOCK;
     std::shared_ptr<std::atomic<bool>> cancelled = std::make_shared<std::atomic<bool>>(false);
     std::string peer;   // "ip:port"
+    uint32_t peer_scope = 0; // interface index for a link-local IPv6 peer
 };
 
 // Minimal blocking TCP server. Each accepted client runs on its own thread

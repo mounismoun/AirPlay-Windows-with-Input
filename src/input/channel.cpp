@@ -4,6 +4,7 @@
 #include <openssl/err.h>
 #include <algorithm>
 #include <chrono>
+#include <charconv>
 #include <cstring>
 #include <memory>
 #ifndef _WIN32
@@ -17,12 +18,39 @@ namespace ap::input {
 using namespace std::chrono_literals;
 using Clock = std::chrono::steady_clock;
 
+static int local_endpoint(const std::string& ip, sockaddr_storage& endpoint) {
+    if (ip.find('\0') != std::string::npos) return 0;
+    sockaddr_in v4{};
+    if (inet_pton(AF_INET, ip.c_str(), &v4.sin_addr) == 1) {
+        const uint32_t n = ntohl(v4.sin_addr.s_addr);
+        if (!(n == 0x7f000001 || (n >> 24) == 10 || (n >> 20) == 0xac1 ||
+              (n >> 16) == 0xc0a8 || (n >> 16) == 0xa9fe)) return 0;
+        v4.sin_family = AF_INET;
+        v4.sin_port = htons(49721);
+        std::memcpy(&endpoint, &v4, sizeof(v4));
+        return sizeof(v4);
+    }
+    sockaddr_in6 v6{};
+    const auto zone = ip.find('%');
+    if (inet_pton(AF_INET6, ip.substr(0, zone).c_str(), &v6.sin6_addr) != 1) return 0;
+    if (zone != std::string::npos) {
+        auto end = ip.data() + ip.size();
+        uint32_t index = 0;
+        auto parsed = std::from_chars(ip.data() + zone + 1, end, index);
+        if (parsed.ec != std::errc{} || parsed.ptr != end || index == 0) return 0;
+        v6.sin6_scope_id = index;
+    }
+    const bool link_local = IN6_IS_ADDR_LINKLOCAL(&v6.sin6_addr) && v6.sin6_scope_id;
+    if (!link_local && (v6.sin6_addr.s6_addr[0] & 0xfe) != 0xfc) return 0;
+    v6.sin6_family = AF_INET6;
+    v6.sin6_port = htons(49721);
+    std::memcpy(&endpoint, &v6, sizeof(v6));
+    return sizeof(v6);
+}
+
 bool private_address(const std::string& ip) {
-    in_addr addr{};
-    if (inet_pton(AF_INET, ip.c_str(), &addr) != 1) return false;
-    uint32_t n = ntohl(addr.s_addr);
-    return n == 0x7f000001 || (n >> 24) == 10 || (n >> 20) == 0xac1 || (n >> 16) == 0xc0a8 ||
-           (n >> 16) == 0xa9fe;
+    sockaddr_storage endpoint{};
+    return local_endpoint(ip, endpoint) != 0;
 }
 
 bool decode_secret(const char* hex, Secret& secret) {
@@ -92,7 +120,7 @@ unsigned int supply_key(SSL* ssl, const char*, char* identity, unsigned int cap,
     return static_cast<unsigned>(secret->size());
 }
 struct Socket {
-    socket_t fd = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    socket_t fd;
     ~Socket() { if (fd != INVALID_SOCK) net::close_socket(fd); }
 };
 }
@@ -104,13 +132,15 @@ void Channel::run(std::string ip, Secret secret) {
     sigaddset(&blocked, SIGPIPE);
     pthread_sigmask(SIG_BLOCK, &blocked, nullptr);
 #endif
-    std::string failure = "Could not open a TCP socket for " + ip + ":49721";
+    std::string failure;
+    bool tcp_connected = false;
     auto connect_and_send = [&]() {
-        sockaddr_in peer{};
-        peer.sin_family = AF_INET;
-        peer.sin_port = htons(49721);
-        inet_pton(AF_INET, ip.c_str(), &peer.sin_addr);
-        Socket sock;
+        const std::string endpoint = (ip.find(':') == std::string::npos ? ip : "[" + ip + "]") + ":49721";
+        failure = "Could not open a TCP socket for " + endpoint;
+        sockaddr_storage peer{};
+        int length = local_endpoint(ip, peer);
+        if (!length) return;
+        Socket sock{::socket(peer.ss_family, SOCK_STREAM, IPPROTO_TCP)};
         if (sock.fd == INVALID_SOCK) return;
 #ifdef _WIN32
         u_long mode = 1;
@@ -136,8 +166,8 @@ void Channel::run(std::string ip, Secret secret) {
             return false;
         };
         auto deadline = Clock::now() + 4s;
-        failure = "TCP connection to " + ip + ":49721";
-        if (connect(sock.fd, reinterpret_cast<sockaddr*>(&peer), sizeof(peer)) != 0) {
+        failure = "TCP connection to " + endpoint;
+        if (connect(sock.fd, reinterpret_cast<sockaddr*>(&peer), length) != 0) {
             const int initial = net::last_error();
 #ifdef _WIN32
             const bool pending = initial == WSAEWOULDBLOCK || initial == WSAEINPROGRESS;
@@ -165,6 +195,7 @@ void Channel::run(std::string ip, Secret secret) {
                 return;
             }
         }
+        tcp_connected = true;
         failure = "TCP connected. Windows could not initialize TLS-PSK.";
         std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> ctx(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
         if (!ctx || !SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION) ||
@@ -223,6 +254,17 @@ void Channel::run(std::string ip, Secret secret) {
         SSL_shutdown(tls.get());
     };
     connect_and_send();
+    if (!tcp_connected && state_ == State::connecting && ip.find(':') != std::string::npos) {
+        auto other = net::cached_peer_ipv4(ip);
+        if (private_address(other) && state_ == State::connecting) {
+            const auto first_failure = failure;
+            ip = std::move(other);
+            connect_and_send();
+            if (!tcp_connected) failure = first_failure + "\n" + failure;
+        }
+    }
+    if (!tcp_connected)
+        failure += "\nOpen AirPlay Input on the Mac and check that it is waiting for Windows.";
     OPENSSL_cleanse(secret.data(), secret.size());
     std::lock_guard<std::mutex> guard(mutex_);
     if (state_ == State::connecting || state_ == State::ready) {

@@ -1349,8 +1349,11 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
 
         DeviceInfo input_peer;
         const bool mirror_input = active_device_snapshot(input_peer) && input_peer.kind == "Mirror";
-        mac_input.update(window, mirror_input ? input_peer.peer_ip : "",
-                         mirror_input ? input_peer.session_id : "", mac_key_positions);
+        std::string input_address = input_peer.peer_ip;
+        if (input_peer.input_scope) input_address += "%" + std::to_string(input_peer.input_scope);
+        mac_input.update(window, mirror_input ? input_address : "",
+                         mirror_input ? input_peer.session_id : "", mac_key_positions,
+                         input_peer.input_device_id, input_peer.name);
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (mac_input.event(e)) continue;

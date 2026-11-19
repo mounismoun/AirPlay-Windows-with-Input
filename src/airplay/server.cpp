@@ -82,6 +82,7 @@ void Server::handle_client(ap::net::ClientSocket client) {
                           static_cast<int>(client.fd), ctx_.renderer,
                           ctx_.mirror_hwaccel);
     session.live = ctx_.live;
+    session.remote_scope = client.peer_scope;
 
     while (reader.read(client.fd, req)) {
         if (req.method == "SETUP" || req.method == "ANNOUNCE" || req.method == "RECORD") {

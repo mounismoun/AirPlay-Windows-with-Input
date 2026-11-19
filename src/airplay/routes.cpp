@@ -455,6 +455,10 @@ Response setup_airplay2_path(ClientSession& session, const Request& req) {
     if (session.renderer) {
         ap::video::VideoRenderer::DeviceInfo dev;
         session.renderer->active_device_snapshot(dev);
+        if (dev.session_id != session.streams->session_id())
+            dev.input_device_id.clear();
+        if (!parsed.device_id.empty()) dev.input_device_id = parsed.device_id;
+        dev.input_scope = session.remote_scope;
         dev.peer_ip    = session.remote_ip;
         dev.session_id = session.streams->session_id();
         if (!parsed.name.empty())  dev.name  = parsed.name;

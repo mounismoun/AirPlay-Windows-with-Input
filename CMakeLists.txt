@@ -300,7 +300,9 @@ endif()
 add_executable(airplay-windows
     src/main.cpp
     src/input/channel.cpp
+    src/input/pairing.cpp
     src/input/video_input.cpp
+    src/input/windows_keyboard.cpp
     src/log.cpp
     src/settings.cpp
     src/platform/desktop_controls.cpp
@@ -423,7 +425,7 @@ if(WIN32)
     # dwmapi: DwmSetWindowAttribute for the Win11 Mica backdrop on the
     # VideoRenderer window.
     target_link_libraries(airplay-windows PRIVATE
-        ws2_32 iphlpapi dnsapi dwmapi d3d11 dxgi
+        ws2_32 iphlpapi dnsapi advapi32 dwmapi d3d11 dxgi comctl32 imm32
         setupapi shell32 ole32 oleaut32 windowsapp)   # USB, Lockdown lookup and firewall COM API
 
     # Released as a GUI app so no empty console window pops up when
@@ -556,12 +558,12 @@ endif()
 # Focused regression tests for receiver disconnect and shutdown.
 option(BUILD_NETWORK_TESTS "Build socket shutdown regression tests" OFF)
 if(BUILD_NETWORK_TESTS)
-    add_executable(test-mac-input tools/test_mac_input.cpp src/input/channel.cpp
-        src/input/video_input.cpp src/net/socket.cpp src/log.cpp)
+    add_executable(test-mac-input tools/test_mac_input.cpp src/input/channel.cpp src/input/pairing.cpp
+        src/input/video_input.cpp src/input/windows_keyboard.cpp src/net/socket.cpp src/log.cpp)
     target_include_directories(test-mac-input PRIVATE src)
     target_link_libraries(test-mac-input PRIVATE OpenSSL::SSL OpenSSL::Crypto ${SDL2_TARGET} imgui)
     if(WIN32)
-        target_link_libraries(test-mac-input PRIVATE ws2_32 iphlpapi)
+        target_link_libraries(test-mac-input PRIVATE ws2_32 iphlpapi advapi32 comctl32 imm32)
     endif()
     add_executable(test-hls tools/test_hls.cpp src/video/hls_player.cpp src/audio/audio_output.cpp
         src/airplay/hls_local_server.cpp src/airplay/hls_session.cpp src/airplay/fcup.cpp

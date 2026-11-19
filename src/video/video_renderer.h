@@ -167,6 +167,8 @@ public:
         std::string kind;        // "Mirror", "HLS", "Audio"
         std::string name;        // "iPhone de Eric" — from SETUP plist
         std::string model;       // "iPhone15,3" — from SETUP plist
+        std::string input_device_id;
+        uint32_t input_scope = 0;
     };
     void set_active_device(DeviceInfo info);
     void clear_active_device();

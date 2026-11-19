@@ -144,6 +144,8 @@ void TcpServer::accept_loop() {
             reinterpret_cast<const char*>(&send_timeout), sizeof(send_timeout));
         ClientSocket client;
         client.fd   = fd;
+        if (peer_is_v6)
+            client.peer_scope = reinterpret_cast<sockaddr_in6*>(&peer)->sin6_scope_id;
         client.peer = peer_is_v6
             ? "[" + std::string(ip) + "]:" + std::to_string(peer_port)
             : std::string(ip) + ":" + std::to_string(peer_port);
