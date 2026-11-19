@@ -50,7 +50,7 @@ static bool until(Channel& client, Channel::State state) {
     return client.state()==state;
 }
 
-static void capture_test(socket_t listener, SSL_CTX* ctx) {
+static void capture_test(socket_t listener, SSL_CTX* ctx, bool mac_positions) {
     SDL_SetMainReady();
     SDL_setenv("SDL_VIDEODRIVER","dummy",1);
     check(SDL_Init(SDL_INIT_VIDEO)==0,"dummy video");
@@ -59,7 +59,7 @@ static void capture_test(socket_t listener, SSL_CTX* ctx) {
     VideoInput video;
     video.update(window,"","");
     check(!video.activate("127.0.0.1",test_key),"armed outside mirroring");
-    video.update(window,"127.0.0.1","session A");
+    video.update(window,"127.0.0.1","session A",mac_positions);
     check(!video.activate("192.168.1.2",test_key),"accepted a different IPv4 mirror peer");
     check(video.activate("127.0.0.1",test_key),"pair input");
     socket_t fd = accept(listener,nullptr,nullptr);
@@ -92,8 +92,25 @@ static void capture_test(socket_t listener, SSL_CTX* ctx) {
     e.button.clicks=2; e.button.x=399; e.button.y=239;
     video.event(e);
     expect({button,1,0,2,255,255,255,255});
-    e = {}; e.type=SDL_KEYDOWN; e.key.windowID=id; e.key.keysym.scancode=SDL_SCANCODE_LCTRL;
-    video.event(e); expect({key,224,1});
+    const auto press = [&](SDL_Scancode physical, uint8_t wire, bool down) {
+        SDL_Event k{};
+        k.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+        k.key.windowID = id;
+        k.key.keysym.scancode = physical;
+        check(video.event(k), "modifier chord escaped to receiver");
+        expect({key, wire, uint8_t(down)});
+    };
+    struct Binding { SDL_Scancode physical; uint8_t position_code; };
+    for (Binding b : {Binding{SDL_SCANCODE_LCTRL,231}, {SDL_SCANCODE_LGUI,226},
+                      {SDL_SCANCODE_LALT,224}, {SDL_SCANCODE_RALT,227},
+                      {SDL_SCANCODE_RGUI,230}, {SDL_SCANCODE_RCTRL,228}}) {
+        uint8_t wire = mac_positions ? b.position_code : uint8_t(b.physical);
+        press(b.physical,wire,true);
+        press(SDL_SCANCODE_C,6,true);
+        press(SDL_SCANCODE_C,6,false);
+        press(b.physical,wire,false);
+    }
+    e = {}; e.type=SDL_KEYDOWN; e.key.windowID=id;
     e.key.keysym.scancode=SDL_SCANCODE_F9;
     video.event(e); expect({key,144,1});
     e = {}; e.type=SDL_WINDOWEVENT; e.window.windowID=id; e.window.event=SDL_WINDOWEVENT_FOCUS_LOST;
@@ -152,7 +169,8 @@ static void channel_test() {
         SSL_free(ssl);
         ap::net::close_socket(fd);
     }
-    capture_test(listener,ctx);
+    capture_test(listener,ctx,true);
+    capture_test(listener,ctx,false);
     check(client.start("127.0.0.1",test_key), "ack test start");
     socket_t fd = accept(listener,nullptr,nullptr);
     SSL* ssl = SSL_new(ctx);

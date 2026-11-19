@@ -141,9 +141,9 @@ void render(const std::filesystem::path& output,int width,int height,int model,b
     ap::video::VideoRecorder::Status recording;
     recording.recording=active; recording.elapsed_ms=125000; recording.frames=7500;
     if (failed) {recording.error="Could not open output folder"; recording.output_path="D:/Videos/AirPlay recordings/test-recording.mp4";}
-    bool diagnostics=false,custom=model==-2;
+    bool diagnostics=false,mac_key_positions=true,custom=model==-2;
     if (custom) {live.mirror_width=1352;live.mirror_height=2400;}
-    ap::video::StandardSettingsContext settings{&live,receiver,directory,options,recording,diagnostics,custom,
+    ap::video::StandardSettingsContext settings{&live,receiver,directory,options,recording,diagnostics,mac_key_positions,custom,
         1080,1920,0,[](std::string&){return false;},[]{},[]{},[](const char* code){ap::i18n::set_language(code);}};
     for (int frame=0;frame<8;++frame) {
         ImGui_ImplSDLRenderer2_NewFrame();ImGui::NewFrame();

@@ -15,6 +15,7 @@ struct StandardSettingsContext {
     VideoRecorder::Options& recording_options;
     VideoRecorder::Status recording;
     bool& diagnostics;
+    bool& mac_key_positions;
     bool& custom_resolution;
     int video_width, video_height;
     double reset_notice_until;
@@ -88,6 +89,12 @@ inline bool draw_standard_settings(StandardSettingsContext& context, ImFont* hea
             ImGui::PushFont(small);
             ImGui::TextWrapped("%s", tr("Changes apply immediately and are saved automatically."));
             ImGui::PopFont();
+        }
+        if (settings_section("Mac keyboard")) {
+            ImGui::Checkbox(tr("Use MacBook modifier positions"), &context.mac_key_positions);
+            ImGui::TextWrapped("%s", context.mac_key_positions
+                ? "Ctrl = Control     Win = Option     Alt = Command"
+                : "Left Ctrl = Command     Right Ctrl = Control     Alt = Option");
         }
         if (live_settings_ && settings_section("Receiver name",
                 ImGuiTreeNodeFlags_DefaultOpen)) {

@@ -7,6 +7,19 @@
 #include <cstdio>
 
 namespace ap::input {
+// The v1 Swift agent assigns its own Quartz modifiers to these wire codes.
+// Send its existing left/right codes so previously paired agents work as-is.
+static SDL_Scancode mac_position_code(SDL_Scancode physical) {
+    switch (physical) {
+    case SDL_SCANCODE_LCTRL: return SDL_SCANCODE_RGUI;  // left Control
+    case SDL_SCANCODE_LGUI:  return SDL_SCANCODE_LALT;  // left Option
+    case SDL_SCANCODE_LALT:  return SDL_SCANCODE_LCTRL; // left Command
+    case SDL_SCANCODE_RALT:  return SDL_SCANCODE_LGUI;  // right Command
+    case SDL_SCANCODE_RGUI:  return SDL_SCANCODE_RALT;  // right Option
+    default: return physical; // right Ctrl already produces right Control
+    }
+}
+
 bool put_point(Packet& packet, int x, int y, SDL_Rect r, int angle, bool clamp) {
     if (r.w < 2 || r.h < 2) return false;
     if (!clamp && (x < r.x || y < r.y || x >= r.x+r.w || y >= r.y+r.h)) return false;
@@ -31,11 +44,15 @@ bool VideoInput::capturing() const {
 
 void VideoInput::stop() {
     channel_.stop();
+    if (keyboard_grabbed_) {
+        SDL_SetWindowKeyboardGrab(window_, SDL_FALSE);
+        keyboard_grabbed_ = false;
+    }
     if (buttons_) SDL_CaptureMouse(SDL_FALSE);
     buttons_ = 0;
 }
 
-void VideoInput::update(SDL_Window* window, const std::string& peer, const std::string& session) {
+void VideoInput::update(SDL_Window* window, const std::string& peer, const std::string& session, bool mac_key_positions) {
     window_ = window;
     if (peer != peer_ || session != session_) {
         stop();
@@ -55,6 +72,14 @@ void VideoInput::update(SDL_Window* window, const std::string& peer, const std::
         message_ = failure;
     }
     if (capturing() && SDL_GetKeyboardFocus() != window_) stop();
+    // Never switch a held key's mapping between down and up.
+    if (!capturing()) mac_key_positions_ = mac_key_positions;
+    if (ready() && mac_key_positions_ && !keyboard_grabbed_) {
+        // F8 releases the keyboard, including when fullscreen.
+        SDL_SetHint(SDL_HINT_ALLOW_ALT_TAB_WHILE_GRABBED, "0");
+        SDL_SetWindowKeyboardGrab(window_, SDL_TRUE);
+        keyboard_grabbed_ = true;
+    }
 }
 
 void VideoInput::presented(SDL_Rect pixels, int angle, int w, int h) {
@@ -109,6 +134,7 @@ bool VideoInput::event(const SDL_Event& e) {
     if (!capturing()) return false;
     if (keyboard && e.key.windowID == id) {
         auto code = e.key.keysym.scancode;
+        if (mac_key_positions_) code = mac_position_code(code);
         if (code == SDL_SCANCODE_F9) code = SDL_SCANCODE_LANG1;
         if (code > 0 && code < 256)
             channel_.send({key, uint8_t(code), uint8_t(e.type == SDL_KEYUP ? 0 : e.key.repeat ? 2 : 1)});

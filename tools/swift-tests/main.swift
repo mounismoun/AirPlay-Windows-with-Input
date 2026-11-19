@@ -27,7 +27,20 @@ func send(_ bytes: [UInt8]) {
 }
 let topLeft = CGPoint(x: -1600, y: 100)
 let bottomRight = CGPoint(x: -1, y: 999)
-send([4,224,1]) // Left Ctrl becomes Command
+// v1 wire codes produced by the Windows MacBook-position layout.
+let positions: [(UInt8, UInt16, InputFlags)] = [
+    (231, 59, .control), (226, 58, .option), (224, 55, .command),
+    (227, 54, .command), (230, 61, .option), (228, 62, .control)
+]
+for (wire, quartz, flag) in positions {
+    send([4,wire,1])
+    precondition(events.last!.0 == .keyboard(quartz, down: true, modifier: true, repeated: false))
+    precondition(events.last!.1 == flag)
+    send([4,wire,0])
+    precondition(events.last!.0 == .keyboard(quartz, down: false, modifier: true, repeated: false))
+    precondition(events.last!.1.isEmpty)
+}
+send([4,224,1]) // Command in the v1 protocol
 send([4,6,1])
 send([4,6,2])
 precondition(events.last!.0 == .keyboard(8, down: true, modifier: false, repeated: true))

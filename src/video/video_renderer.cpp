@@ -758,6 +758,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
 #endif
 
     auto preferences = live_settings_ ? live_settings_->ui_preferences() : ap::UiPreferences{};
+    bool mac_key_positions = preferences.mac_key_positions;
     int initial_x = SDL_WINDOWPOS_CENTERED, initial_y = SDL_WINDOWPOS_CENTERED;
     int initial_w = kDefaultWinWidth, initial_h = kDefaultWinHeight;
     if (preferences.window_placement_valid) {
@@ -1058,6 +1059,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
     auto publish_preferences = [&]() {
         auto current = preferences;
         current.diagnostics = ui.diagnostics;
+        current.mac_key_positions = mac_key_positions;
         current.recording_directory = recording_dir.data();
         current.recording_codec = static_cast<int>(recording_options.codec);
         current.recording_encoder = static_cast<int>(recording_options.encoder);
@@ -1146,6 +1148,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         live_settings_->fullscreen.store(defaults.fullscreen);
         live_settings_->chromeless.store(defaults.chromeless);
         preferences = defaults.ui;
+        mac_key_positions = defaults.ui.mac_key_positions;
         face_swap_download.cancel();
         python_setup.cancel();python_setup_pending=false;python_setup_backend=-1;
         face_swap.stop();
@@ -1347,7 +1350,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         DeviceInfo input_peer;
         const bool mirror_input = active_device_snapshot(input_peer) && input_peer.kind == "Mirror";
         mac_input.update(window, mirror_input ? input_peer.peer_ip : "",
-                         mirror_input ? input_peer.session_id : "");
+                         mirror_input ? input_peer.session_id : "", mac_key_positions);
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (mac_input.event(e)) continue;
@@ -2017,7 +2020,7 @@ void VideoRenderer::run(const std::string& title, bool start_hidden) {
         };
         if (ui.page==4) {
             StandardSettingsContext context{live_settings_,receiver_name_buf,recording_dir,recording_options,
-                recorder_->status(),ui.diagnostics,custom_resolution,video_tex_w,video_tex_h,settings_reset_notice_until,
+                recorder_->status(),ui.diagnostics,mac_key_positions,custom_resolution,video_tex_w,video_tex_h,settings_reset_notice_until,
                 [&](std::string& selected) {
 #if defined(_WIN32)
                     return browse_recording_folder(window,recording_dir.data(),selected);

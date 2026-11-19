@@ -84,6 +84,7 @@ PersistentSettings load_settings(const std::filesystem::path& path) {
             else if (key == "dark_theme") {
                 if (val == "0" || val == "1") s.ui.dark_theme = val == "1";
             }
+            else if (key == "mac_key_positions" && (val == "0" || val == "1")) s.ui.mac_key_positions = val == "1";
             else if (key == "diagnostics") s.ui.diagnostics = std::stoi(val) != 0;
             else if (key == "window_placement_valid") s.ui.window_placement_valid = std::stoi(val) != 0;
             else if (key == "window_maximized") s.ui.window_maximized = std::stoi(val) != 0;
@@ -198,6 +199,7 @@ bool save_settings(const PersistentSettings& s, const std::filesystem::path& pat
         << "video_rotation=" << s.video_rotation << '\n'
         << "language=" << (ap::i18n::supported(s.ui.language) ? s.ui.language : "en") << '\n'
         << "dark_theme=" << s.ui.dark_theme << '\n'
+        << "mac_key_positions=" << s.ui.mac_key_positions << '\n'
         << "diagnostics=" << s.ui.diagnostics << '\n'
         << "window_placement_valid=" << s.ui.window_placement_valid << '\n'
         << "window_x=" << s.ui.window_x << '\n'

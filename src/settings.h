@@ -12,6 +12,7 @@ namespace ap {
 struct UiPreferences {
     bool diagnostics = false;
     bool dark_theme = false;
+    bool mac_key_positions = true;
     std::string language = "en";
     bool window_placement_valid = false;
     int window_x = 0, window_y = 0;
@@ -48,13 +49,13 @@ struct UiPreferences {
     int face_swap_swapper_builder = 5; // Shared by all TensorRT models; default 5, optional 3.
 
     bool operator==(const UiPreferences& other) const {
-        return std::tie(diagnostics, dark_theme, language, window_placement_valid, window_x, window_y,
+        return std::tie(diagnostics, dark_theme, mac_key_positions, language, window_placement_valid, window_x, window_y,
                         window_width, window_height, window_maximized, recording_directory,
                         recording_codec, recording_encoder, recording_bitrate,
                         face_swap_source, face_swap_models, face_swap_python, face_swap_cpu_python,
                         face_swap_quality, face_swap_restoration, face_swap_gpu_resident, face_swap_tensorrt,
                         face_swap_animation, face_swap_animation_strength, face_swap_shape_transfer, face_swap_landmarker, face_swap_alignment, face_swap_face_size, face_swap_face_scale, face_swap_model, face_swap_detector, face_swap_mask_expansion, face_swap_mask_shape, face_swap_mask_blur, face_swap_mask_preview, face_swap_mask_padding, face_swap_parser, face_swap_occlusion, face_swap_swapper_tensorrt, face_swap_swapper_builder, face_swap_backend, face_swap_directml_device, face_swap_directml_python) ==
-               std::tie(other.diagnostics, other.dark_theme, other.language, other.window_placement_valid, other.window_x, other.window_y,
+               std::tie(other.diagnostics, other.dark_theme, other.mac_key_positions, other.language, other.window_placement_valid, other.window_x, other.window_y,
                         other.window_width, other.window_height, other.window_maximized, other.recording_directory,
                         other.recording_codec, other.recording_encoder, other.recording_bitrate,
                         other.face_swap_source, other.face_swap_models, other.face_swap_python, other.face_swap_cpu_python,

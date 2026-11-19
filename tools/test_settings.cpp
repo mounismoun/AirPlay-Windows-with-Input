@@ -31,6 +31,7 @@ int main() {
         wanted.mirror_hwaccel = true;
         wanted.ui.diagnostics = true;
         wanted.ui.dark_theme = true;
+        wanted.ui.mac_key_positions = false;
         wanted.ui.language = "zh-CN";
         wanted.ui.window_placement_valid = true;
         wanted.ui.window_x = -1400; wanted.ui.window_y = 100;
@@ -73,6 +74,7 @@ int main() {
         require(ap::load_settings(path) == wanted, "preferences lost on reload");
         wanted.ui.diagnostics = false;
         wanted.ui.dark_theme = false;
+        wanted.ui.mac_key_positions = true;
         wanted.ui.language = "fr";
         wanted.mirror_hwaccel = false;
         wanted.hls_playback = false;
@@ -93,6 +95,7 @@ int main() {
         const auto legacy = ap::load_settings(path);
         require(legacy.receiver_name == "Legacy receiver" && legacy.mirror_hwaccel, "legacy preferences broken");
         require(legacy.ui == ap::UiPreferences{}, "missing fields do not use defaults");
+        require(legacy.ui.mac_key_positions, "existing installations should use MacBook positions by default");
         require(!legacy.hls_playback, "legacy settings must not opt into experimental HLS");
         {
             std::ofstream old_cpu(path); old_cpu << "face_swap_cpu=1\n";
@@ -101,7 +104,7 @@ int main() {
 
         {
             std::ofstream invalid(path);
-            invalid << "language=unsupported\ndark_theme=2\nwindow_width=-5\nwindow_height=9999999\nrecording_codec=99\n"
+            invalid << "language=unsupported\ndark_theme=2\nmac_key_positions=7\nwindow_width=-5\nwindow_height=9999999\nrecording_codec=99\n"
                        "recording_encoder=-1\nrecording_bitrate=0\ndiagnostics=invalid\nhls_playback=2\n"
                        "face_swap_animation=2\nface_swap_animation_strength=101\nface_swap_quality=99\nface_swap_restoration=-1\nface_swap_backend=9\nface_swap_directml_device=-1\nface_swap_swapper_builder=4\nface_swap_mask_expansion=13\nface_swap_mask_shape=9\nface_swap_mask_blur=99\nface_swap_mask_preview=3\nface_swap_shape_transfer=101\nface_swap_landmarker=2\nface_swap_alignment=2\nface_swap_face_size=79\nface_swap_face_scale=121\nface_swap_mask_top=-1\nface_swap_mask_right=46\n";
         }
