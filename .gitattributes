@@ -1,1 +1,5 @@
 mac/start.command text eol=lf
+mac/Scripts/*.sh text eol=lf
+mac/Sources/*.swift text eol=lf
+mac/Tests/* text eol=lf
+mac/Resources/Info.plist text eol=lf

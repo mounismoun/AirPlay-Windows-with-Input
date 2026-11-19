@@ -55,11 +55,6 @@ try {
     foreach ($name in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
         Copy-Item -LiteralPath (Join-Path $repoRoot $name) -Destination $stage
     }
-    $agentSources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'mac') -File -Filter '*.swift' |
-        ForEach-Object FullName)
-    $agentSources += Join-Path $repoRoot 'mac/start.command'
-    $agentSources += Join-Path $repoRoot 'docs/MAC_INPUT.ko.md'
-    Compress-Archive -LiteralPath $agentSources -DestinationPath (Join-Path $stage 'mac-input-agent.zip')
     $docs = Join-Path $stage 'docs'
     New-Item -ItemType Directory -Path $docs | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs') -Filter '*.md' -File |

@@ -4,7 +4,7 @@ Windows에서 Mac의 전체 디스플레이를 미러링하면 영상 창에서 
 
 ## 처음 연결하기
 
-1. Windows에서 기존 수신기를 종료하고 r4 폴더의 `airplay-windows.exe`를 실행합니다.
+1. Windows에서 기존 수신기를 종료하고 Windows 배포 폴더의 `airplay-windows.exe`를 실행합니다.
 2. Mac에서 Finder의 **이동 → 폴더로 이동**에 `~/Applications`를 입력하고 **AirPlay Input.app**을 엽니다. **시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용**에서 앱을 허용합니다. 다음 로그인에도 준비되게 하려면 앱의 로그인 시 시작 옵션을 켭니다. 구형 터미널 에이전트가 실행 중이면 종료한 뒤 새 앱을 사용합니다.
 3. Mac에서 Windows로 화면 미러링을 시작합니다. Windows 영상 창의 **Mac input (F8)** 버튼을 클릭하거나 **F8**을 누릅니다. Windows가 현재 미러링 송신자의 주소를 선택합니다.
 4. 처음 한 번 Mac 앱에서 32자리 키를 복사해 Windows의 **Pairing key**에 붙여넣고 **Enable input**을 누릅니다. 연결되면 영상 창 안에서 Mac을 조작할 수 있습니다. 키는 두 장치 사이에서 직접 옮깁니다.
@@ -69,8 +69,9 @@ Windows는 SDL 창 좌표를 렌더러 출력 해상도로 환산하고, 실제 
 | `src/input/channel.*` | TLS 클라이언트, 페어링, 제한된 이벤트 큐와 연결 종료 |
 | `src/input/video_input.*`, `src/video/video_renderer.cpp` | SDL 이벤트, 페어링 창, F8, 좌표 및 창 모드 |
 | `src/input/pairing.*` | 기기별 자격 증명 저장·조회 |
-| Mac의 `airplay-input` 프로젝트 | 네이티브 에이전트 앱과 Mac 빌드 |
-| `mac/` | 구형 r3 터미널 에이전트 소스 |
+| `mac/Sources/`, `mac/Resources/` | Mac 입력 앱 1.1.2의 소스와 번들 설정 |
+| `mac/Scripts/`, `mac/Tests/` | macOS Universal 앱 빌드와 입력·통신 회귀 테스트 |
+| `mac/start.command`, `mac/*.swift` | 구형 r3 터미널 에이전트 |
 | `CMakeLists.txt`, `tools/test_mac_input.cpp`, `tools/swift-tests/` | 빌드 연결, 좌표·통신 및 수신 로직 회귀 테스트 |
 
 Windows 개발 빌드는 Visual Studio C++ x64, Windows SDK, CMake와 프로젝트의 vcpkg 기준 버전을 사용합니다. 아래 명령은 소스 루트에서 실행합니다.
@@ -81,7 +82,7 @@ cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Swift 수신 로직 테스트는 `swiftc -swift-version 5 mac/InputFrames.swift mac/InputSink.swift tools/swift-tests/main.swift -o /tmp/mac-input-tests && /tmp/mac-input-tests`로 실행할 수 있습니다.
+Mac에서는 저장소 루트에서 `./mac/Scripts/test.sh`로 테스트하고 `./mac/Scripts/build.sh`로 빌드합니다. 기본 출력은 `mac/build/AirPlay Input.app`입니다. 실기기로 함께 확인한 조합은 Windows r4.4와 Mac 1.1.2입니다.
 
 Windows 입력 테스트는 키 인증 성공·실패, 준비 응답, 자격 증명 저장 및 새 세션 재연결, 주소 정책, 키 배열, 좌표, 드래그와 포커스 해제를 검사합니다.
 
