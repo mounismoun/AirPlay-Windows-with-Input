@@ -86,8 +86,9 @@ var active: NWConnection?
 var timer: DispatchSourceTimer?
 var frames = InputFrames()
 
-func end(_ conn: NWConnection) {
+func end(_ conn: NWConnection, _ reason: String) {
     guard active === conn else { return }
+    print("Input disconnected: \(reason)")
     active = nil
     timer?.cancel()
     timer = nil
@@ -100,34 +101,51 @@ func end(_ conn: NWConnection) {
 func receive(_ conn: NWConnection) {
     conn.receive(minimumIncompleteLength: 1, maximumLength: 2048) { data, _, complete, error in
         guard active === conn else { return }
-        guard AXIsProcessTrusted(), let data = data, !data.isEmpty else { end(conn); return }
-        guard let count = frames.receive(data, apply: sink.apply) else { end(conn); return }
-        if count > 0 {
-            timer?.schedule(deadline: .now() + 3)
+        guard AXIsProcessTrusted() else { end(conn, "Accessibility access was revoked"); return }
+        if let data = data, !data.isEmpty {
+            guard let count = frames.receive(data, apply: sink.apply) else {
+                end(conn, "selected display unavailable or invalid input frame")
+                return
+            }
+            if count > 0 { timer?.schedule(deadline: .now() + 3) }
         }
-        if complete || error != nil { end(conn) } else { receive(conn) }
+        if let error = error { end(conn, "receive failed (\(error))") }
+        else if complete { end(conn, "Windows closed the connection") }
+        else { receive(conn) }
     }
 }
 
 listener.newConnectionHandler = { conn in
-    guard active == nil, permits(conn.endpoint, from: windowsIP) else { conn.cancel(); return }
+    guard permits(conn.endpoint, from: windowsIP) else {
+        print("Input rejected from \(conn.endpoint). Expected Windows address \(windowsIP).")
+        conn.cancel()
+        return
+    }
+    guard active == nil else {
+        print("Input rejected: another connection is still active.")
+        conn.cancel()
+        return
+    }
+    print("TCP accepted from \(conn.endpoint). Starting TLS pairing.")
     active = conn
     sink = makeSink()
     let watchdog = DispatchSource.makeTimerSource(queue: .main)
     timer = watchdog
-    watchdog.schedule(deadline: .now() + 4)
-    watchdog.setEventHandler { end(conn) }
+    watchdog.schedule(deadline: .now() + 6)
+    watchdog.setEventHandler { end(conn, "pairing or input heartbeat timed out") }
     watchdog.resume()
     conn.stateUpdateHandler = { state in
         guard active === conn else { return }
         switch state {
         case .ready:
-            guard AXIsProcessTrusted() else { end(conn); return }
+            guard AXIsProcessTrusted() else { end(conn, "Accessibility access required"); return }
+            print("TLS paired. Sending input-ready acknowledgement.")
             conn.send(content: Data([1]), completion: .contentProcessed { err in
-                if err != nil { end(conn) }
+                if let err = err { end(conn, "ready acknowledgement failed (\(err))") }
             })
             receive(conn)
-        case .failed, .cancelled: end(conn)
+        case .failed(let error): end(conn, "Network.framework connection failed (\(error))")
+        case .cancelled: end(conn, "connection cancelled")
         default: break
         }
     }
@@ -141,7 +159,7 @@ listener.stateUpdateHandler = { state in
         print("Pairing key: " + secret.map { String(format: "%02x", $0) }.joined())
         print("Press Ctrl-C here to release input and quit.")
     case .failed(let err):
-        if let conn = active { end(conn) }
+        if let conn = active { end(conn, "listener failed") }
         fail("Listener failed: \(err)")
     default: break
     }
@@ -150,7 +168,7 @@ let signals = [SIGINT, SIGTERM, SIGHUP].map { number -> DispatchSourceSignal in
     signal(number, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
     source.setEventHandler {
-        if let conn = active { end(conn) }
+        if let conn = active { end(conn, "agent stopped") }
         listener.cancel()
         exit(0)
     }

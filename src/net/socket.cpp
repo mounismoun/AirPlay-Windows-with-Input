@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #if defined(_WIN32)
@@ -19,6 +20,43 @@
 #endif
 
 namespace ap::net {
+
+std::string cached_peer_ipv4(const std::string& ipv6) {
+#if defined(_WIN32)
+    in6_addr address{};
+    if (inet_pton(AF_INET6, ipv6.c_str(), &address) != 1 || !IN6_IS_ADDR_LINKLOCAL(&address)) return {};
+    PMIB_IPNET_TABLE2 raw = nullptr;
+    if (GetIpNetTable2(AF_UNSPEC, &raw) != NO_ERROR) return {};
+    std::unique_ptr<MIB_IPNET_TABLE2, decltype(&FreeMibTable)> table(raw, FreeMibTable);
+    auto usable = [](const MIB_IPNET_ROW2& row) {
+        return !row.IsRouter && !row.IsUnreachable && row.State >= NlnsProbe &&
+               row.State <= NlnsPermanent && row.PhysicalAddressLength == 6;
+    };
+    const MIB_IPNET_ROW2* peer = nullptr;
+    for (ULONG i = 0; i < table->NumEntries; ++i) {
+        const auto& row = table->Table[i];
+        if (!usable(row) || row.Address.si_family != AF_INET6 ||
+            std::memcmp(&row.Address.Ipv6.sin6_addr, &address, sizeof(address)) != 0) continue;
+        if (peer) return {};
+        peer = &row;
+    }
+    if (!peer) return {};
+    std::string result;
+    for (ULONG i = 0; i < table->NumEntries; ++i) {
+        const auto& row = table->Table[i];
+        if (!usable(row) || row.Address.si_family != AF_INET || row.InterfaceIndex != peer->InterfaceIndex ||
+            std::memcmp(row.PhysicalAddress, peer->PhysicalAddress, 6) != 0) continue;
+        char text[INET_ADDRSTRLEN]{};
+        if (!inet_ntop(AF_INET, &row.Address.Ipv4.sin_addr, text, sizeof(text))) continue;
+        if (!result.empty() && result != text) return {};
+        result = text;
+    }
+    return result;
+#else
+    (void)ipv6;
+    return {};
+#endif
+}
 
 bool global_init() {
 #if defined(_WIN32)

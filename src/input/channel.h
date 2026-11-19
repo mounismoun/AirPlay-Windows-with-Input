@@ -24,10 +24,12 @@ public:
     void stop();
     void send(Packet packet);
     State state() const { return state_.load(); }
+    std::string failure_message();
 private:
     void run(std::string ip, Secret secret);
     std::atomic<State> state_{State::off};
     std::mutex mutex_;
+    std::string failure_;
     std::condition_variable wake_;
     std::deque<Packet> queue_;
     std::thread worker_;

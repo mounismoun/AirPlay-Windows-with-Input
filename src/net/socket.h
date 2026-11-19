@@ -42,6 +42,9 @@ int send_all(socket_t s, const void* buf, int len);
 // Returns the first non-loopback IPv4 address as a string, or "0.0.0.0".
 std::string primary_ipv4();
 
+// IPv4 neighbor on the same link as an observed IPv6 peer, when unambiguous.
+std::string cached_peer_ipv4(const std::string& ipv6);
+
 // Returns the first non-loopback, non-link-local IPv6 address of the
 // same interface as primary_ipv4(), or an empty string if none is
 // configured. iOS 14+ sometimes prefers v6 on the _airplay._tcp

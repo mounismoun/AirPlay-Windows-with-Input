@@ -1,6 +1,7 @@
 #include "input/channel.h"
 #include "net/socket.h"
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -60,6 +61,11 @@ void Channel::stop() {
     wake_.notify_one();
 }
 
+std::string Channel::failure_message() {
+    std::lock_guard<std::mutex> guard(mutex_);
+    return failure_;
+}
+
 void Channel::send(Packet p) {
     std::lock_guard<std::mutex> guard(mutex_);
     if (state_ != State::ready) return;
@@ -68,6 +74,7 @@ void Channel::send(Packet p) {
     else if (queue_.size() < 128)
         queue_.push_back(p);
     else {
+        failure_ = "Input queue filled while sending. Reconnect to resume.";
         state_ = State::failed;
         queue_.clear();
     }
@@ -97,6 +104,7 @@ void Channel::run(std::string ip, Secret secret) {
     sigaddset(&blocked, SIGPIPE);
     pthread_sigmask(SIG_BLOCK, &blocked, nullptr);
 #endif
+    std::string failure = "Could not open a TCP socket for " + ip + ":49721";
     auto connect_and_send = [&]() {
         sockaddr_in peer{};
         peer.sin_family = AF_INET;
@@ -121,22 +129,43 @@ void Channel::run(std::string ip, Secret secret) {
                 timeval timeout{0, 50000};
                 int rc = select(static_cast<int>(sock.fd + 1), writing ? nullptr : &ready,
                                 writing ? &ready : nullptr, &errors, &timeout);
-                if (rc != 0) return rc > 0 && !FD_ISSET(sock.fd, &errors);
+                // A nonblocking Winsock connect reports refusal in exceptfds.
+                // Let the caller read SO_ERROR (or retry the TLS operation).
+                if (rc != 0) return rc > 0;
             }
             return false;
         };
         auto deadline = Clock::now() + 4s;
+        failure = "TCP connection to " + ip + ":49721";
         if (connect(sock.fd, reinterpret_cast<sockaddr*>(&peer), sizeof(peer)) != 0) {
-            if (!wait_io(true, deadline)) return;
+            const int initial = net::last_error();
+#ifdef _WIN32
+            const bool pending = initial == WSAEWOULDBLOCK || initial == WSAEINPROGRESS;
+#else
+            const bool pending = initial == EINPROGRESS;
+#endif
+            if (!pending) {
+                failure += " failed (socket " + std::to_string(initial) + ").";
+                return;
+            }
+            if (!wait_io(true, deadline)) {
+                failure += Clock::now() >= deadline ? " timed out." : " interrupted.";
+                return;
+            }
             int error = 0;
 #ifdef _WIN32
             int len = sizeof(error);
 #else
             socklen_t len = sizeof(error);
 #endif
-            if (getsockopt(sock.fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &len) || error)
+            if (getsockopt(sock.fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &len))
+                error = net::last_error();
+            if (error) {
+                failure += " failed (socket " + std::to_string(error) + ").";
                 return;
+            }
         }
+        failure = "TCP connected. Windows could not initialize TLS-PSK.";
         std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> ctx(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
         if (!ctx || !SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION) ||
             !SSL_CTX_set_max_proto_version(ctx.get(), TLS1_2_VERSION) ||
@@ -147,19 +176,36 @@ void Channel::run(std::string ip, Secret secret) {
         SSL_set_app_data(tls.get(), &secret);
         auto transfer = [&](auto operation, Clock::time_point until) {
             while (state_ != State::off && state_ != State::failed) {
+                ERR_clear_error();
                 int result = operation();
                 if (result > 0) return result;
                 int error = SSL_get_error(tls.get(), result);
-                if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE) break;
-                if (!wait_io(error == SSL_ERROR_WANT_WRITE, until)) break;
+                if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE) {
+                    const char* reason = ERR_reason_error_string(ERR_peek_last_error());
+                    if (reason) failure += std::string(" (") + reason + ")";
+                    else if (error == SSL_ERROR_ZERO_RETURN) failure += " (peer closed TLS)";
+                    else failure += " (TLS I/O " + std::to_string(error) + ")";
+                    break;
+                }
+                if (!wait_io(error == SSL_ERROR_WANT_WRITE, until)) {
+                    if (Clock::now() >= until) failure += " (timed out)";
+                    break;
+                }
             }
             return 0;
         };
-        if (!transfer([&] { return SSL_connect(tls.get()); }, deadline)) return;
+        failure = "TCP connected to " + ip + ". TLS pairing failed";
+        if (!transfer([&] { return SSL_connect(tls.get()); }, Clock::now() + 5s)) return;
         uint8_t ack = 0;
-        if (!transfer([&] { return SSL_read(tls.get(), &ack, 1); }, deadline) || ack != 1) return;
+        failure = "TLS paired. The Mac agent did not confirm input readiness";
+        if (!transfer([&] { return SSL_read(tls.get(), &ack, 1); }, Clock::now() + 4s)) return;
+        if (ack != 1) {
+            failure = "TLS paired. Unexpected Mac agent protocol version.";
+            return;
+        }
         State expected = State::connecting;
         if (!state_.compare_exchange_strong(expected, State::ready)) return;
+        failure = "The paired Mac input session disconnected";
         while (state_ == State::ready) {
             Packet packet{};
             {
@@ -179,7 +225,10 @@ void Channel::run(std::string ip, Secret secret) {
     connect_and_send();
     OPENSSL_cleanse(secret.data(), secret.size());
     std::lock_guard<std::mutex> guard(mutex_);
-    if (state_ != State::off) state_ = State::failed;
+    if (state_ == State::connecting || state_ == State::ready) {
+        failure_ = std::move(failure);
+        state_ = State::failed;
+    }
     queue_.clear();
 }
 } // namespace ap::input

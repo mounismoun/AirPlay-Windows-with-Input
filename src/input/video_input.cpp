@@ -1,4 +1,5 @@
 #include "input/video_input.h"
+#include "net/socket.h"
 #include "imgui.h"
 #include <openssl/crypto.h>
 #include <algorithm>
@@ -40,16 +41,18 @@ void VideoInput::update(SDL_Window* window, const std::string& peer, const std::
         stop();
         peer_ = peer;
         session_ = session;
+        address_.fill(0);
         paired_ = pairing_ = popup_ = false;
         OPENSSL_cleanse(secret_.data(), secret_.size());
         video_ = {};
     }
     if (channel_.state() == Channel::State::failed) {
+        const auto failure = channel_.failure_message();
         stop();
         paired_ = false;
         OPENSSL_cleanse(secret_.data(), secret_.size());
         request_pair();
-        message_ = "Connection ended. Check the Mac agent, address and pairing key.";
+        message_ = failure;
     }
     if (capturing() && SDL_GetKeyboardFocus() != window_) stop();
 }
@@ -64,7 +67,11 @@ void VideoInput::presented(SDL_Rect pixels, int angle, int w, int h) {
 void VideoInput::request_pair() {
     if (session_.empty() || peer_.empty()) return;
     if (paired_ && activate(address_.data(), secret_.data())) return;
-    std::snprintf(address_.data(), address_.size(), "%s", private_address(peer_) ? peer_.c_str() : "");
+    if (!address_[0]) {
+        const auto candidate = private_address(peer_) ? peer_ : net::cached_peer_ipv4(peer_);
+        if (private_address(candidate))
+            std::snprintf(address_.data(), address_.size(), "%s", candidate.c_str());
+    }
     message_.clear();
     popup_ = true;
     pairing_ = true;

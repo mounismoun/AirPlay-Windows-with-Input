@@ -144,13 +144,30 @@ static void channel_test() {
             check(SSL_read(ssl,received.data(),8)==8 && received==Packet{}, "idle heartbeat");
             client.stop();
             check(SSL_read(ssl,received.data(),8)<=0, "socket still active after release");
-        } else check(until(client,Channel::State::failed), "bad key accepted");
+        } else {
+            check(until(client,Channel::State::failed), "bad key accepted");
+            check(client.failure_message().find("TLS pairing failed") != std::string::npos,
+                  "bad key was not identified as a TLS-stage failure");
+        }
         SSL_free(ssl);
         ap::net::close_socket(fd);
     }
     capture_test(listener,ctx);
+    check(client.start("127.0.0.1",test_key), "ack test start");
+    socket_t fd = accept(listener,nullptr,nullptr);
+    SSL* ssl = SSL_new(ctx);
+    check(fd != INVALID_SOCK && ssl && SSL_set_fd(ssl,static_cast<int>(fd)) && SSL_accept(ssl)==1,
+          "ack test TLS");
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    ap::net::close_socket(fd);
+    check(until(client,Channel::State::failed) && client.failure_message().find("input readiness") != std::string::npos,
+          "lost ready acknowledgement was not identified");
     SSL_CTX_free(ctx);
     ap::net::close_socket(listener);
+    check(client.start("127.0.0.1",test_key) && until(client,Channel::State::failed) &&
+          client.failure_message().find("TCP connection to 127.0.0.1:49721 failed") != std::string::npos,
+          "connection refusal was not identified");
 }
 
 int main() {
